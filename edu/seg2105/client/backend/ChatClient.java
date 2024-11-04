@@ -107,5 +107,24 @@ public class ChatClient extends AbstractClient
 	  quit();
   }
   
+  public static void main(String[] args) {
+	  String host = "localhost";
+	  int port = 5555;
+	  
+	  if(args.length > 0) {
+		  host =args[0];
+	  }
+	  
+	  if (args.length > 1) {
+		  try {
+			  port = Integer.parseInt(args[1]);
+		  }catch (NumberFormatException e) {
+			  System.out.println("Invalid port number. Using default port " + port);
+		  }
+	  }
+  }
+  
+
+  
 }
 //End of ChatClient class
