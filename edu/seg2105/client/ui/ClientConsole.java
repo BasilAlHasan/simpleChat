@@ -3,11 +3,10 @@ package edu.seg2105.client.ui;
 // "Object Oriented Software Engineering" and is issued under the open-source
 // license found at www.lloseng.com 
 
-import java.io.*;
 import java.util.Scanner;
 
 import edu.seg2105.client.backend.ChatClient;
-import edu.seg2105.client.common.*;
+import edu.seg2105.client.common.ChatIF;
 
 /**
  * This class constructs the UI for a chat client.  It implements the
@@ -26,6 +25,7 @@ public class ClientConsole implements ChatIF
    * The default port to connect on.
    */
   final public static int DEFAULT_PORT = 5555;
+  final public static String DEFAULT_HOST = "localhost";
   
   //Instance variables **********************************************
   
@@ -50,20 +50,9 @@ public class ClientConsole implements ChatIF
    * @param host The host to connect to.
    * @param port The port to connect on.
    */
-  public ClientConsole(String host, int port) 
+  public ClientConsole(String loginID,String host, int port) 
   {
-    try 
-    {
-      client= new ChatClient(host, port, this);
-      
-      
-    } 
-    catch(IOException exception) 
-    {
-      System.out.println("Error: Can't setup connection!"
-                + " Terminating client.");
-      System.exit(1);
-    }
+    client = new ChatClient(loginID, host, port, this);
     
     // Create scanner object to read from console
     fromConsole = new Scanner(System.in); 
@@ -117,19 +106,32 @@ public class ClientConsole implements ChatIF
    */
   public static void main(String[] args) 
   {
-    String host = "";
+    String host = DEFAULT_HOST;
+    int port = DEFAULT_PORT;
+    String loginID =null;
 
 
-    try
-    {
-      host = args[0];
+    if (args.length < 1) {
+        System.out.println("ERROR - No login ID specified. Connection aborted.");
+        System.exit(1);
+    } else {
+        loginID = args[0];
     }
-    catch(ArrayIndexOutOfBoundsException e)
-    {
-      host = "localhost";
+
+    try {
+        if (args.length > 1) {
+            host = args[1];
+        }
+        if (args.length > 2) {
+            port = Integer.parseInt(args[2]);
+        }
+    } catch (NumberFormatException e) {
+        System.out.println("Invalid port number. Using default port " + DEFAULT_PORT);
+        port = DEFAULT_PORT;
     }
-    ClientConsole chat= new ClientConsole(host, DEFAULT_PORT);
-    chat.accept();  //Wait for console data
-  }
+
+    ClientConsole chat = new ClientConsole(loginID, host, port);
+    chat.accept(); // Wait for console data
+  	}
 }
 //End of ConsoleChat class
