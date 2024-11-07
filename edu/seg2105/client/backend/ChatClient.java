@@ -8,7 +8,7 @@ import ocsf.client.*;
 
 import java.io.*;
 
-import edu.seg2105.client.common.ChatIF;
+import edu.seg2105.client.common.*;
 
 /**
  * This class overrides some of the methods defined in the abstract
@@ -26,9 +26,8 @@ public class ChatClient extends AbstractClient
    * The interface type variable.  It allows the implementation of 
    * the display method in the client.
    */
-  ChatIF clientUI; 
-  private String loginID;
-  private boolean isClosing = false;
+  ChatIF clientUI;
+  private String  loginID;
 
   
   //Constructors ****************************************************
@@ -42,17 +41,11 @@ public class ChatClient extends AbstractClient
    */
   
   public ChatClient(String loginID, String host, int port, ChatIF clientUI) 
+    throws IOException 
   {
     super(host, port); //Call the superclass constructor
     this.clientUI = clientUI;
     this.loginID = loginID;
-    try {
-    	openConnection();
-    }catch(IOException e) {
-    	clientUI.display("ERROR - Can't setup connection! Terminating client. ");
-    	quit();
-    }
-    
   }
 
   
@@ -65,7 +58,6 @@ public class ChatClient extends AbstractClient
    */
   public void handleMessageFromServer(Object msg) 
   {
-	  
     clientUI.display(msg.toString());
     
     
@@ -76,28 +68,93 @@ public class ChatClient extends AbstractClient
    *
    * @param message The message from the UI.    
    */
-  public void handleMessageFromClientUI(String message){
+  public void handleMessageFromClientUI(String message)
+  {
 	  if (message.startsWith("#")) {
-          if (message.startsWith("#login")) {
-              try {
-                  sendToServer(message);
-              } catch (IOException e) {
-                  clientUI.display("Could not send message to server.");
-              }
-          } else {
-              processCommand(message);
-          }
+          handleCommand(message);
       } else {
-          if (isConnected()) {
-              try {
-                  sendToServer(message);
-              } catch (IOException e) {
-                  clientUI.display("Could not send message to server.");
-              }
-          } else {
-              clientUI.display("Not connected to a server. Use #login to connect.");
+          try {
+              sendToServer(message);
+          } catch (IOException e) {
+              clientUI.display("Could not send message to server. Terminating client.");
+              quit();
           }
       }
+  }
+  
+  private void handleCommand(String message) {
+	  String[] tokens = message.split(" ");
+	  String command =tokens[0];
+	  
+	  try {
+          switch (command) {
+              case "#quit":
+                  quit();
+                  break;
+              case "#logoff":
+                  closeConnection();
+                  break;
+              case "#sethost":
+                  if (!isConnected()) {
+                      if (tokens.length > 1) {
+                          setHost(tokens[1]);
+                          clientUI.display("Host set to " + getHost());
+                      } else {
+                          clientUI.display("Wrong format");
+                      }
+                  } else {
+                      clientUI.display("Cannot change host while connected.");
+                  }
+                  break;
+              case "#setport":
+                  if (!isConnected()) {
+                      if (tokens.length > 1) {
+                          setPort(Integer.parseInt(tokens[1]));
+                          clientUI.display("Port set to " + getPort());
+                      } else {
+                          clientUI.display("Wrong format");
+                      }
+                  } else {
+                      clientUI.display("Cannot change port while connected.");
+                  }
+                  break;
+              case "#login":
+                  if (!isConnected()) {
+                      openConnection();
+                  } else {
+                      clientUI.display("Already connected.");
+                  }
+                  break;
+              case "#gethost":
+                  clientUI.display("Current host: " + getHost());
+                  break;
+              case "#getport":
+                  clientUI.display("Current port: " + getPort());
+                  break;
+              default:
+                  clientUI.display("Unknown command.");
+                  break;
+          }
+      } catch (IOException e) {
+          clientUI.display("Error processing command.");
+      }
+  }
+  
+  protected void connectionEstablished() {
+	  try {
+		  sendToServer("#login " + loginID);
+	  }catch(IOException e) {
+		  clientUI.display("Error sending loginID to server");
+	  }
+  }
+  
+  protected void connectionClosed() {
+	  clientUI.display("Connection closed.");
+  }
+  
+  protected void connectionException(Exception exception) {
+	  clientUI.display("Server has shut down");
+	  quit();
   }
   
   /**
@@ -105,124 +162,12 @@ public class ChatClient extends AbstractClient
    */
   public void quit()
   {
-   if(!isClosing) {
-	   isClosing=true;
-	   try {
-		   closeConnection();
-	   }catch(IOException e) {
-		   
-	   }
-	   System.exit(0);
-   }
+    try
+    {
+      closeConnection();
+    }
+    catch(IOException e) {}
+    System.exit(0);
   }
-  
-  protected void connectionClosed(){
-	  
-
-	  if(!isClosing) {
-		  clientUI.display("The server has shut down.");
-		  quit();
-	  }
-  }
-  
-  protected void connectionException(Exception exception) {
-	  System.out.println("connection error: " + exception.getMessage());
-	  clientUI.display("Connection error: " + exception.getMessage());
-	  quit();
-  }
-  
-  
-  protected void connectionEstablished() {
-      try {
-          sendToServer("#login " + loginID);
-      } catch (IOException e) {
-          clientUI.display("Error sending login ID to server: " + e.getMessage());
-      }
-  }
-
-  
-  
-  private void processCommand(String message) {
-	  String commandLine = message.substring(1);
-	    String[] tokens = commandLine.split(" ");
-	    String command = tokens[0];
-
-	    switch (command.toLowerCase()) {
-	        case "quit":
-	            quit();
-	            break;
-
-	        case "logoff":
-	            if (isConnected()) {
-	                try {
-	                    closeConnection();
-	                    clientUI.display("connection closed.");
-	                } catch (IOException e) {
-	                    clientUI.display("Error logging off: " + e.getMessage());
-	                }
-	            } else {
-	                clientUI.display("You are not connected to the server.");
-	            }
-	            break;
-
-	        case "sethost":
-	            if (!isConnected()) {
-	                if (tokens.length > 1) {
-	                    setHost(tokens[1]);
-	                    clientUI.display("Host set to " + tokens[1]);
-	                } else {
-	                    clientUI.display("Usage: #sethost <host>");
-	                }
-	            } else {
-	                clientUI.display("Cannot change host while connected. Please log off first.");
-	            }
-	            break;
-
-	        case "setport":
-	            if (!isConnected()) {
-	                if (tokens.length > 1) {
-	                    try {
-	                        int newPort = Integer.parseInt(tokens[1]);
-	                        setPort(newPort);
-	                        clientUI.display("Port set to " + newPort);
-	                    } catch (NumberFormatException e) {
-	                        clientUI.display("Invalid port number.");
-	                    }
-	                } else {
-	                    clientUI.display("Usage: #setport <port>");
-	                }
-	            } else {
-	                clientUI.display("Cannot change port while connected. Please log off first.");
-	            }
-	            break;
-
-	        case "login":
-	            if (!isConnected()) {
-	                try {
-	                    openConnection();
-	                    clientUI.display("You are now logged in.");
-	                } catch (IOException e) {
-	                    clientUI.display("Error logging in: " + e.getMessage());
-	                }
-	            } else {
-	                clientUI.display("You are already connected.");
-	            }
-	            break;
-
-	        case "gethost":
-	            clientUI.display("Current host: " + getHost());
-	            break;
-
-	        case "getport":
-	            clientUI.display("Current port: " + getPort());
-	            break;
-
-	        default:
-	            clientUI.display("Unknown command: " + command);
-	            break;
-	    }
-  }
-
-  
 }
 //End of ChatClient class

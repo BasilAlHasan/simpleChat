@@ -4,11 +4,9 @@ package edu.seg2105.edu.server.backend;
 // license found at www.lloseng.com 
 
 
-import ocsf.server.*;
-import edu.seg2105.client.common.ChatIF;
-
 import java.io.IOException;
 
+import ocsf.server.*;
 
 /**
  * This class overrides some of the methods in the abstract 
@@ -19,8 +17,6 @@ import java.io.IOException;
  * @author Fran&ccedil;ois B&eacute;langer
  * @author Paul Holden
  */
-
-
 public class EchoServer extends AbstractServer 
 {
   //Class variables *************************************************
@@ -37,12 +33,9 @@ public class EchoServer extends AbstractServer
    *
    * @param port The port number to connect on.
    */
-  
-  ChatIF serverUI;
-  public EchoServer(int port, ChatIF serverUI) 
+  public EchoServer(int port) 
   {
     super(port);
-    this.serverUI = serverUI;
   }
 
   
@@ -57,34 +50,101 @@ public class EchoServer extends AbstractServer
   public void handleMessageFromClient
     (Object msg, ConnectionToClient client)
   {
-    String message = msg.toString();
+    String message=msg.toString();
     try {
-    	System.out.println("Message received: " + message + " from " + client.getInfo("loginID"));
-    	if(message.startsWith("#login ")) {
-    		String loginID = message.substring(7).trim();
-    		if(client.getInfo("loginID")!= null) {
-    			client.sendToClient("Error: You are already logged in");
-    			client.close();
-    		}else {
-    			client.setInfo("loginID", loginID);
-    			System.out.println("client " + client.getInetAddress().getHostAddress() + "logged in as " + loginID);
-    		}
-    		
-    		sendToAllClients(loginID + " has logged on.");
-    	}else {
-    		if(client.getInfo("loginID")== null) {
-    			client.sendToClient("Error: you must login first");
-    			client.close();
-    		}else {
-    			String loginID=client.getInfo("loginID").toString();
-    			String messageToSend = loginID + ": " + message;
-    			System.out.println("Message received: " + message + " from " + client.getInfo("loginID"));
-    			this.sendToAllClients(messageToSend);
-    		}
-    	}
-    }catch(IOException e) {
-    	e.printStackTrace();
+        if (message.startsWith("#login")) {
+            if (client.getInfo("loginID") == null) {
+                String[] tokens = message.split(" ");
+                if (tokens.length > 1) {
+                    client.setInfo("loginID", tokens[1]);
+                    System.out.println("Client " + tokens[1] + " logged in.");
+                } else {
+                    client.sendToClient("Login ID required.");
+                    client.close();
+                }
+            } else {
+                client.sendToClient("Already logged in.");
+                client.close();
+            }
+        } else {
+            if (client.getInfo("loginID") == null) {
+                client.sendToClient("You need to login first.");
+                client.close();
+            } else {
+                String loginID = (String) client.getInfo("loginID");
+                String prefixedMessage = loginID + ": " + message;
+                System.out.println("Message received: " + prefixedMessage + " from " + client);
+                sendToAllClients(prefixedMessage);
+            }
+        }
+    } catch (IOException e) {
+        System.out.println("An error has occured");
     }
+  }
+  
+  protected void clientConnected(ConnectionToClient client) {
+	  System.out.println("Client connected: " + client);
+  }
+  
+  synchronized protected void clientDisconnected(ConnectionToClient client) {
+      System.out.println("Client disconnected: " + client);
+  }
+  
+  public void handleMessageFromServerUI(String message) {
+      if (message.startsWith("#")) {
+          handleCommand(message);
+      } else {
+          String fullMessage = "SERVER MSG> " + message;
+          System.out.println(fullMessage);
+          sendToAllClients(fullMessage);
+      }
+  }
+
+  private void handleCommand(String message) {
+      String[] tokens = message.split(" ");
+      String command = tokens[0];
+
+      try {
+          switch (command) {
+              case "#quit":
+                  close();
+                  System.exit(0);
+                  break;
+              case "#stop":
+                  stopListening();
+                  break;
+              case "#close":
+                  close();
+                  break;
+              case "#setport":
+                  if (!isListening() && getNumberOfClients() == 0) {
+                      if (tokens.length > 1) {
+                          setPort(Integer.parseInt(tokens[1]));
+                          System.out.println("Port set to " + getPort());
+                      } else {
+                          System.out.println("Wrogn format");
+                      }
+                  } else {
+                      System.out.println("Cannot change port while server is open or clients are connected.");
+                  }
+                  break;
+              case "#start":
+                  if (!isListening()) {
+                      listen();
+                  } else {
+                      System.out.println("Server is already listening.");
+                  }
+                  break;
+              case "#getport":
+                  System.out.println("Current port: " + getPort());
+                  break;
+              default:
+                  System.out.println("Unknown command.");
+                  break;
+          }
+      } catch (IOException e) {
+          System.out.println("Error processing command.");
+      }
   }
     
   /**
@@ -107,10 +167,6 @@ public class EchoServer extends AbstractServer
       ("Server has stopped listening for connections.");
   }
   
-  public void serverClosed() {
-	  System.out.println("Server closed.");
-  }
-  
   
   //Class methods ***************************************************
   
@@ -122,96 +178,5 @@ public class EchoServer extends AbstractServer
    *          if no argument is entered.
    */
   
-  
-  protected void clientConnected(ConnectionToClient client) {
-	  System.out.println("A new client has connected to the server.");
-  }
-  
-  synchronized protected void clientDisconnected(ConnectionToClient client) {
-	  System.out.println("Disconnected from Client");
-  }
-  
-  public void handleMessageFromServerUI(String message) {
-      if (message.startsWith("#")) {
-          processCommand(message);
-      } else {
-          String serverMessage = "SERVER MSG> " + message;
-          serverUI.display(serverMessage);
-          sendToAllClients(serverMessage);
-      }
-  }
-  
-  private void processCommand(String message) {
-      // Remove the '#' character
-      String commandLine = message.substring(1);
-      String[] tokens = commandLine.split(" ");
-      String command = tokens[0];
-
-      switch (command.toLowerCase()) {
-          case "quit":
-              try {
-                  close();
-              } catch (IOException e) {
-                  serverUI.display("Error closing server: " + e.getMessage());
-              }
-              
-              break;
-
-          case "stop":
-              stopListening();
-              serverUI.display("Server has stopped listening for new clients.");
-              break;
-
-          case "close":
-              try {
-                  close();
-                  serverUI.display("Server closed. All clients disconnected.");
-              } catch (IOException e) {
-                  serverUI.display("Error closing server: " + e.getMessage());
-              }
-              break;
-
-          case "setport":
-              if (isListening() || getNumberOfClients() > 0) {
-                  serverUI.display("Cannot change port while server is open or clients are connected.");
-              } else {
-                  if (tokens.length > 1) {
-                      try {
-                          int newPort = Integer.parseInt(tokens[1]);
-                          setPort(newPort);
-                          serverUI.display("Port set to " + newPort);
-                      } catch (NumberFormatException e) {
-                          serverUI.display("Invalid port number.");
-                      }
-                  } else {
-                      serverUI.display("Usage: #setport <port>");
-                  }
-              }
-              break;
-
-          case "start":
-              if (!isListening()) {
-                  try {
-                      listen();
-                      serverUI.display("Server started listening for new clients.");
-                  } catch (IOException e) {
-                      serverUI.display("Error starting server: " + e.getMessage());
-                  }
-              } else {
-                  serverUI.display("Server is already listening.");
-              }
-              break;
-
-          case "getport":
-              serverUI.display("Current port: " + getPort());
-              break;
-
-          default:
-              serverUI.display("Unknown command: " + command);
-              break;
-      }
-  }
-  
- 
 }
 //End of EchoServer class
